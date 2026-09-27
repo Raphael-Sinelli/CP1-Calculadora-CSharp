@@ -1,16 +1,18 @@
+using System.Globalization;
+
 namespace Calculadora;
 
-static class Program
+internal static class Program
 {
-    /// <summary>
-    ///  The main entry point for the application.
-    /// </summary>
+    /// <summary>Ponto de entrada da aplicação.</summary>
     [STAThread]
-    static void Main()
+    private static void Main()
     {
-        // To customize application configuration such as set high DPI settings or default font,
-        // see https://aka.ms/applicationconfiguration.
+        var culturaPtBr = CultureInfo.GetCultureInfo("pt-BR");
+        CultureInfo.DefaultThreadCurrentCulture = culturaPtBr;
+        CultureInfo.DefaultThreadCurrentUICulture = culturaPtBr;
+
         ApplicationConfiguration.Initialize();
-        Application.Run(new Form1());
-    }    
+        Application.Run(new FormCalculadora());
+    }
 }
