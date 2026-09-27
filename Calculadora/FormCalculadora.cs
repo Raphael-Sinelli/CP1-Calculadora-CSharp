@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace Calculadora;
 
@@ -9,8 +10,13 @@ namespace Calculadora;
 /// </summary>
 public partial class FormCalculadora : Form
 {
+    private const int MaximoDeDigitos = 16;
+
     private static readonly CultureInfo CulturaPtBr = CultureInfo.GetCultureInfo("pt-BR");
     private static readonly string SeparadorDecimal = CulturaPtBr.NumberFormat.NumberDecimalSeparator;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int valor, int tamanho);
 
     private readonly CalculadoraMotor _motor = new();
     private readonly Memoria _memoria = new();
@@ -26,10 +32,35 @@ public partial class FormCalculadora : Form
     public FormCalculadora()
     {
         InitializeComponent();
+
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
+        menuPrincipal.Renderer = new ToolStripProfessionalRenderer(new TemaEscuroMenu());
+        AplicarModoEscuroNaBarraDeTitulo();
+
         _fonteVisorNumero = lblVisor.Font;
         _fonteVisorErro = new Font(_fonteVisorNumero.FontFamily, 15f, FontStyle.Regular);
+
         KeyDown += FormCalculadora_KeyDown;
         KeyPress += FormCalculadora_KeyPress;
+    }
+
+    private void AplicarModoEscuroNaBarraDeTitulo()
+    {
+        try
+        {
+            int ativado = 1;
+            const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+            const int DWMWA_USE_IMMERSIVE_DARK_MODE_ANTIGO = 19;
+
+            if (DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref ativado, sizeof(int)) != 0)
+            {
+                DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE_ANTIGO, ref ativado, sizeof(int));
+            }
+        }
+        catch
+        {
+            // Versões antigas do Windows não suportam o atributo; a janela continua funcional.
+        }
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -37,92 +68,96 @@ public partial class FormCalculadora : Form
         switch (keyData)
         {
             case Keys.Enter:
-                ProcessarIgual();
+                Seguro(ProcessarIgual);
                 return true;
             case Keys.Escape:
-                ProcessarLimpar();
+                Seguro(ProcessarLimpar);
                 return true;
             case Keys.Back:
-                ProcessarBackspace();
+                Seguro(ProcessarBackspace);
                 return true;
             default:
                 return base.ProcessCmdKey(ref msg, keyData);
         }
     }
 
-    private void MenuItemSobre_Click(object? sender, EventArgs e)
+    private void MenuItemSobre_Click(object? sender, EventArgs e) => Seguro(() =>
     {
         using var formSobre = new FormSobre();
         formSobre.ShowDialog(this);
-    }
+    });
 
-    private void BotaoDigito_Click(object? sender, EventArgs e)
+    private void BotaoDigito_Click(object? sender, EventArgs e) => Seguro(() =>
     {
         var botao = (Button)sender!;
         ProcessarDigito(botao.Text);
-    }
+    });
 
-    private void BotaoOperador_Click(object? sender, EventArgs e)
+    private void BotaoOperador_Click(object? sender, EventArgs e) => Seguro(() =>
     {
         var botao = (Button)sender!;
         var operacao = (Operacao)botao.Tag!;
         ProcessarOperador(operacao);
-    }
+    });
 
-    private void BotaoIgual_Click(object? sender, EventArgs e) => ProcessarIgual();
+    private void BotaoIgual_Click(object? sender, EventArgs e) => Seguro(ProcessarIgual);
 
-    private void BotaoLimpar_Click(object? sender, EventArgs e) => ProcessarLimpar();
+    private void BotaoLimpar_Click(object? sender, EventArgs e) => Seguro(ProcessarLimpar);
 
-    private void BotaoBackspace_Click(object? sender, EventArgs e) => ProcessarBackspace();
+    private void BotaoBackspace_Click(object? sender, EventArgs e) => Seguro(ProcessarBackspace);
 
-    private void BotaoPontoDecimal_Click(object? sender, EventArgs e) => ProcessarPontoDecimal();
+    private void BotaoPontoDecimal_Click(object? sender, EventArgs e) => Seguro(ProcessarPontoDecimal);
 
-    private void BotaoInverterSinal_Click(object? sender, EventArgs e) => ProcessarInverterSinal();
+    private void BotaoInverterSinal_Click(object? sender, EventArgs e) => Seguro(ProcessarInverterSinal);
 
-    private void BotaoRaiz_Click(object? sender, EventArgs e) => ProcessarRaizQuadrada();
+    private void BotaoRaiz_Click(object? sender, EventArgs e) => Seguro(ProcessarRaizQuadrada);
 
-    private void BotaoPotencia_Click(object? sender, EventArgs e) => ProcessarOperador(Operacao.Potencia);
+    private void BotaoPotencia_Click(object? sender, EventArgs e) => Seguro(() => ProcessarOperador(Operacao.Potencia));
 
-    private void BotaoQuadrado_Click(object? sender, EventArgs e) => ProcessarAoQuadrado();
+    private void BotaoQuadrado_Click(object? sender, EventArgs e) => Seguro(ProcessarAoQuadrado);
 
-    private void BotaoMC_Click(object? sender, EventArgs e)
+    private void BotaoMC_Click(object? sender, EventArgs e) => Seguro(() =>
     {
         _memoria.Limpar();
         AtualizarIndicadorMemoria();
-    }
+    });
 
-    private void BotaoMR_Click(object? sender, EventArgs e)
+    private void BotaoMR_Click(object? sender, EventArgs e) => Seguro(() =>
     {
         ReiniciarSeEmErro();
-        _entradaAtual = FormatarNumero(_memoria.Recuperar());
-        _iniciarNovoNumero = true;
-        AtualizarVisor();
-    }
+        AplicarResultado(_memoria.Recuperar());
+    });
 
-    private void BotaoMMais_Click(object? sender, EventArgs e)
+    private void BotaoMMais_Click(object? sender, EventArgs e) => Seguro(() =>
     {
+        ReiniciarSeEmErro();
         _memoria.Adicionar(ObterValorAtual());
         _iniciarNovoNumero = true;
+        AtualizarVisor();
         AtualizarIndicadorMemoria();
-    }
+    });
 
-    private void BotaoMMenos_Click(object? sender, EventArgs e)
+    private void BotaoMMenos_Click(object? sender, EventArgs e) => Seguro(() =>
     {
+        ReiniciarSeEmErro();
         _memoria.Subtrair(ObterValorAtual());
         _iniciarNovoNumero = true;
+        AtualizarVisor();
         AtualizarIndicadorMemoria();
-    }
+    });
 
-    private void FormCalculadora_KeyDown(object? sender, KeyEventArgs e)
+    private void FormCalculadora_KeyDown(object? sender, KeyEventArgs e) => Seguro(() =>
     {
-        if (e.KeyCode >= Keys.D0 && e.KeyCode <= Keys.D9)
+        bool semModificadores = !e.Shift && !e.Control && !e.Alt;
+
+        if (semModificadores && e.KeyCode >= Keys.D0 && e.KeyCode <= Keys.D9)
         {
             ProcessarDigito(((int)e.KeyCode - (int)Keys.D0).ToString(CulturaPtBr));
             e.SuppressKeyPress = true;
             return;
         }
 
-        if (e.KeyCode >= Keys.NumPad0 && e.KeyCode <= Keys.NumPad9)
+        if (semModificadores && e.KeyCode >= Keys.NumPad0 && e.KeyCode <= Keys.NumPad9)
         {
             ProcessarDigito(((int)e.KeyCode - (int)Keys.NumPad0).ToString(CulturaPtBr));
             e.SuppressKeyPress = true;
@@ -151,9 +186,9 @@ public partial class FormCalculadora : Form
         }
 
         e.SuppressKeyPress = true;
-    }
+    });
 
-    private void FormCalculadora_KeyPress(object? sender, KeyPressEventArgs e)
+    private void FormCalculadora_KeyPress(object? sender, KeyPressEventArgs e) => Seguro(() =>
     {
         switch (e.KeyChar)
         {
@@ -183,6 +218,22 @@ public partial class FormCalculadora : Form
         }
 
         e.Handled = true;
+    });
+
+    /// <summary>
+    /// Executa uma ação da calculadora protegendo a aplicação de qualquer
+    /// exceção inesperada, para que nenhum clique ou tecla feche o app.
+    /// </summary>
+    private void Seguro(Action acao)
+    {
+        try
+        {
+            acao();
+        }
+        catch (Exception)
+        {
+            MostrarErro("Erro inesperado");
+        }
     }
 
     private void ProcessarDigito(string digito)
@@ -193,13 +244,32 @@ public partial class FormCalculadora : Form
         {
             _entradaAtual = digito;
             _iniciarNovoNumero = false;
-        }
-        else
-        {
-            _entradaAtual += digito;
+            AtualizarVisor();
+            return;
         }
 
+        if (ContarDigitos(_entradaAtual) >= MaximoDeDigitos)
+        {
+            return;
+        }
+
+        _entradaAtual += digito;
         AtualizarVisor();
+    }
+
+    private static int ContarDigitos(string texto)
+    {
+        int contagem = 0;
+
+        foreach (char caractere in texto)
+        {
+            if (char.IsDigit(caractere))
+            {
+                contagem++;
+            }
+        }
+
+        return contagem;
     }
 
     private void ProcessarPontoDecimal()
@@ -228,16 +298,30 @@ public partial class FormCalculadora : Form
         if (_iniciarNovoNumero && _motor.PossuiOperacaoPendente)
         {
             _motor.SubstituirOperacaoPendente(operacao);
-        }
-        else
-        {
-            double resultado = _motor.DefinirOperacaoPendente(atual, operacao);
-            _entradaAtual = FormatarNumero(resultado);
-            _historicoTexto = $"{_entradaAtual} {SimboloDe(operacao)}";
+            _iniciarNovoNumero = true;
+            AtualizarVisor();
+            AtualizarHistorico();
+            return;
         }
 
-        _iniciarNovoNumero = true;
-        AtualizarVisor();
+        double resultado;
+
+        try
+        {
+            resultado = _motor.DefinirOperacaoPendente(atual, operacao);
+        }
+        catch (Exception ex) when (ex is DivideByZeroException or ArgumentException)
+        {
+            MostrarErro(ex.Message);
+            return;
+        }
+
+        if (!AplicarResultado(resultado))
+        {
+            return;
+        }
+
+        _historicoTexto = $"{_entradaAtual} {SimboloDe(operacao)}";
         AtualizarHistorico();
     }
 
@@ -255,28 +339,33 @@ public partial class FormCalculadora : Form
         Operacao operacaoUsada = tinhaPendente ? _motor.OperacaoPendente : _motor.OperacaoParaRepeticao;
         double operandoRepeticaoAnterior = _motor.OperandoParaRepeticao;
 
+        double resultado;
+
         try
         {
-            double resultado = _motor.CalcularResultado(atual);
-
-            if (tinhaPendente)
-            {
-                _historicoTexto = $"{_historicoTexto} {FormatarNumero(atual)} =";
-            }
-            else if (operacaoUsada != Operacao.Nenhuma)
-            {
-                _historicoTexto =
-                    $"{FormatarNumero(atual)} {SimboloDe(operacaoUsada)} {FormatarNumero(operandoRepeticaoAnterior)} =";
-            }
-
-            _entradaAtual = FormatarNumero(resultado);
-            _iniciarNovoNumero = true;
-            AtualizarVisor();
-            AtualizarHistorico();
+            resultado = _motor.CalcularResultado(atual);
         }
         catch (Exception ex) when (ex is DivideByZeroException or ArgumentException)
         {
             MostrarErro(ex.Message);
+            return;
+        }
+
+        string? novoHistorico = tinhaPendente
+            ? $"{_historicoTexto} {FormatarNumero(atual)} ="
+            : operacaoUsada != Operacao.Nenhuma
+                ? $"{FormatarNumero(atual)} {SimboloDe(operacaoUsada)} {FormatarNumero(operandoRepeticaoAnterior)} ="
+                : null;
+
+        if (!AplicarResultado(resultado))
+        {
+            return;
+        }
+
+        if (novoHistorico != null)
+        {
+            _historicoTexto = novoHistorico;
+            AtualizarHistorico();
         }
     }
 
@@ -285,19 +374,25 @@ public partial class FormCalculadora : Form
         ReiniciarSeEmErro();
         double atual = ObterValorAtual();
 
+        double resultado;
+
         try
         {
-            double resultado = _motor.RaizQuadrada(atual);
-            _historicoTexto = $"√({FormatarNumero(atual)}) =";
-            _entradaAtual = FormatarNumero(resultado);
-            _iniciarNovoNumero = true;
-            AtualizarVisor();
-            AtualizarHistorico();
+            resultado = _motor.RaizQuadrada(atual);
         }
         catch (ArgumentException ex)
         {
             MostrarErro(ex.Message);
+            return;
         }
+
+        if (!AplicarResultado(resultado))
+        {
+            return;
+        }
+
+        _historicoTexto = $"√({FormatarNumero(atual)}) =";
+        AtualizarHistorico();
     }
 
     private void ProcessarAoQuadrado()
@@ -306,10 +401,12 @@ public partial class FormCalculadora : Form
         double atual = ObterValorAtual();
         double resultado = _motor.AoQuadrado(atual);
 
+        if (!AplicarResultado(resultado))
+        {
+            return;
+        }
+
         _historicoTexto = $"({FormatarNumero(atual)})² =";
-        _entradaAtual = FormatarNumero(resultado);
-        _iniciarNovoNumero = true;
-        AtualizarVisor();
         AtualizarHistorico();
     }
 
@@ -390,6 +487,25 @@ public partial class FormCalculadora : Form
         _iniciarNovoNumero = true;
     }
 
+    /// <summary>
+    /// Único ponto que grava um resultado numérico no visor. Se o resultado
+    /// não for um número válido (NaN ou infinito), mostra erro em vez de
+    /// deixar texto não numérico em <see cref="_entradaAtual"/>.
+    /// </summary>
+    private bool AplicarResultado(double resultado)
+    {
+        if (double.IsNaN(resultado) || double.IsInfinity(resultado))
+        {
+            MostrarErro("Resultado inválido");
+            return false;
+        }
+
+        _entradaAtual = FormatarNumero(resultado);
+        _iniciarNovoNumero = true;
+        AtualizarVisor();
+        return true;
+    }
+
     private double ObterValorAtual()
     {
         string texto = _entradaAtual.TrimEnd(SeparadorDecimal[0]);
@@ -404,11 +520,6 @@ public partial class FormCalculadora : Form
 
     private static string FormatarNumero(double valor)
     {
-        if (double.IsNaN(valor) || double.IsInfinity(valor))
-        {
-            return "Entrada inválida";
-        }
-
         double arredondado = Math.Round(valor, 10, MidpointRounding.AwayFromZero);
 
         if (arredondado == 0)
