@@ -56,7 +56,7 @@ partial class FormSobre
 
         lblTurma = new Label
         {
-            Text = "Turma 2TDSPS - Curso TDS - Checkpoint 1 de Programação em C# e .NET",
+            Text = "Turma 2TDSPS, curso TDS, Checkpoint 1 de Programação em C# e .NET",
             Dock = DockStyle.Top,
             Height = 40,
             Font = new Font("Segoe UI", 9.5f),
