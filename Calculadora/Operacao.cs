@@ -9,5 +9,6 @@ public enum Operacao
     Soma,
     Subtracao,
     Multiplicacao,
-    Divisao
+    Divisao,
+    Potencia
 }

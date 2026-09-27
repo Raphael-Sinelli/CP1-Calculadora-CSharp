@@ -18,6 +18,12 @@ public class CalculadoraMotor
     /// <summary>Operação atualmente pendente, usada para montar o histórico na tela.</summary>
     public Operacao OperacaoPendente => _operacaoPendente;
 
+    /// <summary>Última operação concluída, usada para repetir a conta ao apertar = de novo.</summary>
+    public Operacao OperacaoParaRepeticao => _operacaoParaRepeticao;
+
+    /// <summary>Segundo operando da última operação concluída, usado na repetição do =.</summary>
+    public double OperandoParaRepeticao => _operandoParaRepeticao;
+
     public double Somar(double a, double b) => a + b;
 
     public double Subtrair(double a, double b) => a - b;
@@ -127,6 +133,7 @@ public class CalculadoraMotor
         Operacao.Subtracao => Subtrair(a, b),
         Operacao.Multiplicacao => Multiplicar(a, b),
         Operacao.Divisao => Dividir(a, b),
+        Operacao.Potencia => Potencia(a, b),
         _ => b
     };
 }
